@@ -64,11 +64,13 @@ class SliceThread(threading.Thread):
         height_param = "-DLAYER_HEIGHT={0}".format(self._height)
 
         try:
+            LOG.info("Starting slice at height {0}".format(self._height))
             subprocess.check_call([self._openscad,
                                    height_param,
                                    "-o", self._output_file,
                                    self._scad_file])
-            LOG.info("Completed height {0}".format(self._height))
+            LOG.info("Completed slice at height {0}".format(self._height))
+
         except subprocess.CalledProcessError as cpe:
             LOG.error(str(cpe))
 
