@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import argparse
-import threading
+import multiprocessing
 import string
 import subprocess
 import logging
@@ -34,45 +34,30 @@ projection(cut=true)
 
 #==============================================================================
 
-class SliceThread(threading.Thread):
+def execute_slice(args):
     """
-    Thread that actually runs OpenSCAD and does slicing.
+    Create new slicing thread.
+
+    @param args Arguments:
+        scad_file .scad file used to create slice
+        height Height at which to take slice
+        output_file DXF file to save to
+        openscad OpenSCAD executable
     """
 
-    def __init__(self, scad_file, height, output_file, openscad='openscad'):
-        """
-        Create new slicing thread.
+    scad_file, height, output_file, openscad = args
+    height_param = "-DLAYER_HEIGHT={0}".format(height)
 
-        @param scad_file .scad file used to create slice
-        @param height Height at which to take slice
-        @param output_file DXF file to save to
-        @param openscad OpenSCAD executable
-        """
+    try:
+        LOG.info("Starting slice at height {0}".format(height))
+        subprocess.check_call([openscad,
+                               height_param,
+                               "-o", output_file,
+                               scad_file])
+        LOG.info("Completed slice at height {0}".format(height))
 
-        threading.Thread.__init__(self)
-        self._scad_file = scad_file
-        self._height = height
-        self._output_file = output_file
-        self._openscad = openscad
-
-
-    def run(self):
-        """
-        Executes the slicing.
-        """
-
-        height_param = "-DLAYER_HEIGHT={0}".format(self._height)
-
-        try:
-            LOG.info("Starting slice at height {0}".format(self._height))
-            subprocess.check_call([self._openscad,
-                                   height_param,
-                                   "-o", self._output_file,
-                                   self._scad_file])
-            LOG.info("Completed slice at height {0}".format(self._height))
-
-        except subprocess.CalledProcessError as cpe:
-            LOG.error(str(cpe))
+    except subprocess.CalledProcessError as cpe:
+        LOG.error(str(cpe))
 
 #==============================================================================
 
@@ -81,7 +66,7 @@ class SlicingOperation(object):
     Configuration and runner for a slicing operation.
     """
 
-    def __init__(self, out_format, openscad='openscad'):
+    def __init__(self, out_format, openscad='openscad', processes=4):
         """
         Create new slicing configuration.
 
@@ -90,6 +75,7 @@ class SlicingOperation(object):
 
         @param out_format Output directory and file format
         @param openscad Executable for OpenSCAD (default: openscad)
+        @param processes Number of processes (default: 4)
         """
 
         self.scad_includes = []
@@ -100,6 +86,7 @@ class SlicingOperation(object):
 
         self._out_format = out_format
         self._openscad_command = openscad
+        self._processes = processes
 
         self._scad_include_str = 'include <{0}>;'
         self._slices = []
@@ -138,13 +125,10 @@ class SlicingOperation(object):
         self._make_slice_file();
 
         out_format = string.Template(self._out_format)
-        for s in self._slices:
-            out_file = out_format.substitute(height=s)
-            st = SliceThread(scad_file=self.scad_filename,
-                             height=s,
-                             output_file=out_file)
-            st.start()
-            st.join()
+        jobs = [(self.scad_filename, h, out_format.substitute(height=h), self._openscad_command) for h in self._slices]
+
+        pool = multiprocessing.Pool(processes=self._processes)
+        pool.map(execute_slice, jobs)
 
         if not self.keep_scad_file:
             LOG.info('Removing .scad file: %s', self.scad_filename)
@@ -273,6 +257,14 @@ def parse_cli():
     )
 
     parser.add_argument(
+        '-j', '--jobs',
+        action='store',
+        type=int,
+        default=4,
+        help='Number oj jobs (processes)'
+    )
+
+    parser.add_argument(
         '--log-level',
         action='store',
         type=str,
@@ -306,7 +298,7 @@ def run_from_cl(props):
         sys.exit(1)
 
     # Setup slicing
-    sc = SlicingOperation(props.output, props.openscad_command)
+    sc = SlicingOperation(props.output, props.openscad_command, props.jobs)
 
     sc.scad_object_modules.extend(props.object_module)
     sc.scad_key_modules.extend(props.key_module if props.key_module is not None else [])
