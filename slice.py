@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import argparse
+import math
 import multiprocessing
 import string
 import subprocess
@@ -31,6 +32,32 @@ projection(cut=true)
   }
 }
 """)
+
+#==============================================================================
+
+def frange(end,start=0,inc=0,precision=1):
+    """
+    A range function that accepts float increments.
+    """
+
+    if not start:
+        start = end + 0.0
+        end = 0.0
+    else:
+        end += 0.0
+
+    if not inc:
+        inc = 1.0
+
+    count = int(math.ceil((start - end) / inc))
+
+    L = [None] * count
+
+    L[0] = end
+    for i in (xrange(1,count)):
+        L[i] = L[i-1] + inc
+
+    return L
 
 #==============================================================================
 
@@ -106,9 +133,9 @@ class SlicingOperation(object):
 
         if step is None:
             s = (end - start) / num
-            self._slices = range(start, end + 1, s)
+            self._slices = frange(start, end, s)
         elif num is None:
-            self._slices = range(start, end + 1, step)
+            self._slices = frange(start, end, step)
         else:
             raise RuntimeError()
 
@@ -198,7 +225,7 @@ def parse_cli():
     parser.add_argument(
         '-st', '--start',
         action='store',
-        type=int,
+        type=float,
         default=0.0,
         help='Minimum object height to slice from'
     )
@@ -206,7 +233,7 @@ def parse_cli():
     parser.add_argument(
         '-ed', '--end',
         action='store',
-        type=int,
+        type=float,
         default=100.0,
         help='Maximum object height to slice to'
     )
@@ -214,7 +241,7 @@ def parse_cli():
     parser.add_argument(
         '-s', '--step',
         action='store',
-        type=int,
+        type=float,
         help='Seperation between slices'
     )
 
