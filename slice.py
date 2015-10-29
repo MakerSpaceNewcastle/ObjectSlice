@@ -119,7 +119,7 @@ class SlicingOperation(object):
         self._slices = []
 
 
-    def set_slices(self, start=0, end=1, step=None, num=None):
+    def set_slices(self, start=0.0, end=1.0, step=None, num=None):
         """
         Sets the slicing.
 
@@ -132,7 +132,7 @@ class SlicingOperation(object):
         """
 
         if step is None:
-            s = (end - start) / num
+            s = (end - start) / float(num)
             self._slices = frange(start, end, s)
         elif num is None:
             self._slices = frange(start, end, step)
