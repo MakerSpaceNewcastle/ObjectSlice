@@ -15,7 +15,7 @@ SLICER_TEMPLATE = string.Template("""
 $import_str
 projection(cut=true)
 {
-  translate([0, 0, -LAYER_HEIGHT])
+  translate([0, 0, -LAYER_HEIGHT-0.001])
   {
     difference()
     {
